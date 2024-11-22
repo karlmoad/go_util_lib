@@ -19,7 +19,7 @@ func (q *LIFOQueue[T]) Enqueue(item T) {
 }
 
 // Dequeue Remove item from queue
-func (q *LIFOQueue[T]) Dequeue() (*T, bool) {
+func (q *LIFOQueue[T]) Dequeue() (T, bool) {
 	return q.queue.PopHead()
 }
 

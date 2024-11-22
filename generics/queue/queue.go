@@ -4,7 +4,7 @@ package queue
 // to queue based types in this lib
 type Queue[T any] interface {
 	Enqueue(item T)
-	Dequeue() (*T, bool)
+	Dequeue() (T, bool)
 	Current() (T, bool)
 	Depth() int
 	Clear()

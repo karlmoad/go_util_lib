@@ -19,7 +19,7 @@ func (q *FIFOQueue[T]) Enqueue(item T) {
 }
 
 // Dequeue Remove item from queue
-func (q *FIFOQueue[T]) Dequeue() (*T, bool) {
+func (q *FIFOQueue[T]) Dequeue() (T, bool) {
 	return q.queue.PopTail()
 }
 

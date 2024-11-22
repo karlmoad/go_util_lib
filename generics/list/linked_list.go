@@ -35,29 +35,47 @@ func (h *LinkedList[T]) PushHead(item T) {
 	h.size++
 }
 
-func (h *LinkedList[T]) PopHead() (*T, bool) {
+func (h *LinkedList[T]) PopHead() (T, bool) {
 	if h.head == nil {
-		return nil, false
+		var zero T
+		return zero, false
 	} else {
 		h.mutx.Lock()
 		defer h.mutx.Unlock()
 		node := h.head
 		h.head = node.next
+		h.eval()
 		h.size--
-		return &node.item, true
+		return node.item, true
 	}
 }
 
-func (h *LinkedList[T]) PopTail() (*T, bool) {
+func (h *LinkedList[T]) eval() {
+	if h.head != nil {
+		h.head.prev = nil
+	} else {
+		h.tail = nil
+	}
+
+	if h.tail != nil {
+		h.tail.next = nil
+	} else {
+		h.head = nil
+	}
+}
+
+func (h *LinkedList[T]) PopTail() (T, bool) {
 	if h.tail == nil {
-		return nil, false
+		var zero T
+		return zero, false
 	} else {
 		h.mutx.Lock()
 		defer h.mutx.Unlock()
 		node := h.tail
 		h.tail = node.prev
+		h.eval()
 		h.size--
-		return &node.item, true
+		return node.item, true
 	}
 }
 

@@ -20,7 +20,7 @@ func TestLinkedList_Depth(t *testing.T) {
 func TestLinkedList_PopHead(t *testing.T) {
 	ll := createAndFillIntList()
 	if v, ok := ll.PopHead(); ok {
-		if *v != 10 {
+		if v != 10 {
 			t.Errorf("PopHead() = %d, want 10", v)
 		}
 		if ll.head.item != 9 {
@@ -34,7 +34,7 @@ func TestLinkedList_PopHead(t *testing.T) {
 func TestLinkedList_PopTail(t *testing.T) {
 	ll := createAndFillIntList()
 	if v, ok := ll.PopTail(); ok {
-		if *v != 1 {
+		if v != 1 {
 			t.Errorf("PopTail() = %d, want 1", v)
 		}
 		if ll.tail.item != 2 {
@@ -45,13 +45,13 @@ func TestLinkedList_PopTail(t *testing.T) {
 	}
 }
 
-func TestNewLInkedList_Fill_RemAll_Head(t *testing.T) {
+func TestNewLInkedList_Fill_RemAll(t *testing.T) {
 	ll := createAndFillIntList()
 	var start int = 10
 	for i := 0; i < 11; i++ {
 		if v, ok := ll.PopHead(); ok {
-			if *v != start {
-				t.Errorf("PopHead() = %d, want %d", *v, start)
+			if v != start {
+				t.Errorf("PopHead() = %d, want %d", v, start)
 			}
 			start--
 
