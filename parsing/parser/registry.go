@@ -5,14 +5,17 @@ import (
 )
 
 type Registry struct {
-	conditions     []ConditionHandler
-	handlers       []ParsingHandler
-	defaultHandler ParsingHandler
-	mut            sync.Mutex
+	conditions       []ConditionHandler
+	handlers         []ParsingHandler
+	defaultHandler   ParsingHandler
+	escapeConditions []ConditionHandler
+	mut              sync.Mutex
 }
 
 func newRegistry() *Registry {
-	return &Registry{conditions: make([]ConditionHandler, 0), handlers: make([]ParsingHandler, 0)}
+	return &Registry{conditions: make([]ConditionHandler, 0),
+		handlers:         make([]ParsingHandler, 0),
+		escapeConditions: make([]ConditionHandler, 0)}
 }
 
 func (r *Registry) RegisterHandler(condition ConditionHandler, handler ParsingHandler) {
@@ -20,6 +23,12 @@ func (r *Registry) RegisterHandler(condition ConditionHandler, handler ParsingHa
 	defer r.mut.Unlock()
 	r.conditions = append(r.conditions, condition)
 	r.handlers = append(r.handlers, handler)
+}
+
+func (r *Registry) RegisterGlobalEscapeHandlers(condition ConditionHandler) {
+	r.mut.Lock()
+	defer r.mut.Unlock()
+	r.escapeConditions = append(r.escapeConditions, condition)
 }
 
 func (r *Registry) RegisterDefaultHandler(handler ParsingHandler) {
@@ -37,4 +46,15 @@ func (r *Registry) evaluateConditions(p *Parser) ParsingHandler {
 		}
 	}
 	return r.defaultHandler
+}
+
+func (r *Registry) evaluateEscapeConditions(p *Parser) bool {
+	r.mut.Lock()
+	defer r.mut.Unlock()
+	for _, condition := range r.escapeConditions {
+		if assert := condition(p); assert {
+			return true
+		}
+	}
+	return false
 }

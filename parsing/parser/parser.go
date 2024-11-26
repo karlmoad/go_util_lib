@@ -3,8 +3,11 @@ package parser
 import (
 	"fmt"
 	"github.com/karlmoad/go_util_lib/generics/queue"
+	"github.com/karlmoad/go_util_lib/parsing"
+	"github.com/karlmoad/go_util_lib/parsing/ast"
 	"github.com/karlmoad/go_util_lib/parsing/dialect"
 	"github.com/karlmoad/go_util_lib/parsing/lexer"
+	"math"
 	"strings"
 )
 
@@ -21,14 +24,12 @@ func NewParser(source string, dialect dialect.Dialect) *Parser {
 	p := &Parser{
 		pos:        0,
 		reg:        newRegistry(),
-		lex:        lexer.Tokenize(source, dialect),
+		lex:        lexer.NewLexer(source, dialect),
 		depth:      0,
 		dialect:    dialect,
 		eventQueue: queue.NewLIFOQueue[ConditionHandler](),
 	}
-
-	p.dialect.RegisterParsingHandlers(p.reg)
-
+	p.dialect.RegisterParser(p.reg)
 	return p
 }
 
@@ -47,30 +48,13 @@ func (p *Parser) hasMoreTokens() bool {
 }
 
 func (p *Parser) peek(n int) lexer.Token {
-	tPos := p.pos + n
-	if tPos < 0 {
-		tPos = 0
-	} else {
-		if tPos > len(p.lex.Tokens)-1 {
-			tPos = len(p.lex.Tokens) - 1
-		}
+	tPos := p.pos + int(math.Abs(math.Inf(n)))
+
+	if tPos >= len(p.lex.Tokens) {
+		tPos = len(p.lex.Tokens) - 1
 	}
+
 	return p.lex.Tokens[tPos]
-}
-
-func (p *Parser) peekTokenStream(plusMinus int) []lexer.Token {
-	sPos := p.pos - plusMinus
-	ePos := p.pos + plusMinus + 1
-
-	if sPos < 0 {
-		sPos = 0
-	}
-
-	if ePos > len(p.lex.Tokens) {
-		return p.lex.Tokens[sPos:]
-	} else {
-		return p.lex.Tokens[sPos:ePos]
-	}
 }
 
 func (p *Parser) next() lexer.Token {
@@ -101,10 +85,61 @@ func (p *Parser) expect(expectedKind ...lexer.TokenKind) {
 }
 
 func (p *Parser) errorContext() string {
-	stream := p.peekTokenStream(4)
-	var buffer strings.Builder
-	for _, token := range stream {
-		buffer.WriteString(fmt.Sprintf("%s:[%s],", p.lex.TokenKindString(token.Kind), token.Value))
+	return p.lex.GetContext(p.pos-10, p.pos+10)
+}
+
+func (p *Parser) Parse() ([]ast.ObjType, error) {
+	if err := p.lex.Tokenize(); err != nil {
+		return nil, err
 	}
-	return fmt.Sprintf("Current: %s:(%s)[%d], Stream: %s\n", p.currentToken().Value, p.lex.TokenKindString(p.currentToken().Kind), p.pos, buffer.String())
+
+	objects := make([]ast.ObjType, 0)
+
+	for p.hasMoreTokens() {
+		if p.currentToken().Kind == lexer.EOF {
+			break
+		}
+
+		obj, err := parseObject(p)
+		if err != nil {
+			return nil, err
+		} else {
+			if obj != nil {
+				objects = append(objects, obj)
+			} else {
+				break
+			}
+		}
+	}
+	return objects, nil
+}
+
+func parseObject(p *Parser) (ast.ObjType, error) {
+	//check if escape conditions are met, if so return nil
+	if checkEscapeConditions(p) {
+		return nil, nil // signal escape encountered by returning null, no error
+	}
+
+	p.depth++
+	defer func() { p.depth-- }()
+	handler := p.reg.evaluateConditions(p)
+	if obj, valid := handler(p); valid {
+		return obj, nil
+	} else {
+		// propagate error
+		return nil, parsing.NewHandlerError("parsing handler fault, invalid object returned", p.pos)
+	}
+}
+
+func checkEscapeConditions(p *Parser) bool {
+	if p.eventQueue.Depth() > 0 {
+		if funq, valid := p.eventQueue.Current(); valid {
+			if trigger := funq(p); trigger {
+				p.eventQueue.Dequeue()
+				return true
+			}
+		}
+	}
+
+	return p.reg.evaluateEscapeConditions(p)
 }

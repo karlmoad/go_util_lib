@@ -6,7 +6,6 @@ import (
 )
 
 type Dialect interface {
-	RegisterTokenKinds(reg *lexer.Registry)
-	RegisterTokenizationHandlers(reg *lexer.Registry)
-	RegisterParsingHandlers(reg *parser.Registry)
+	RegisterLexer(reg *lexer.Registry)
+	RegisterParser(reg *parser.Registry)
 }
