@@ -41,11 +41,11 @@ func (reg *Registry) RegisterTokenizationHandler(handler TokenizationHandler) {
 	reg.tokenizationHandlers = append(reg.tokenizationHandlers, handler)
 }
 
-func (reg *Registry) EvaluateTokenizationHandlers(lexer *Lexer) bool {
+func (reg *Registry) EvaluateTokenizationHandlers(lexer *Lexer) (*Token, bool) {
 	for _, handler := range reg.tokenizationHandlers {
-		if activated := handler(lexer); activated {
-			return true
+		if token, activated := handler(lexer); activated {
+			return token, true
 		}
 	}
-	return false
+	return nil, false
 }

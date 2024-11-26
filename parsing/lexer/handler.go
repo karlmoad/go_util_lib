@@ -1,19 +1,29 @@
 package lexer
 
-import "regexp"
+import (
+	"github.com/karlmoad/go_util_lib/common/regex"
+)
 
-type TokenizationHandler func(lex *Lexer) bool
+type TokenizationHandler func(lex *Lexer) (*Token, bool)
 
-func RegexPatternHandler(pattern *regexp.Regexp, kind TokenKind, value string) TokenizationHandler {
-	return func(lex *Lexer) bool {
-		match := pattern.FindStringIndex(lex.remainder())
-		sourceVal := lex.remainder()[match[0]:match[1]]
-		if match != nil && match[0] == 0 {
-			lex.advance(len(sourceVal))
-			lex.push(NewToken(kind, value))
-			return true
+func RegexPatternHandler(pattern *regex.Pattern, kind TokenKind) TokenizationHandler {
+	return func(lex *Lexer) (*Token, bool) {
+		if match, valid := pattern.MatchSourceStart(lex.remainder()); valid {
+			lex.advance(len(match))
+			token := NewToken(kind, match)
+			return &token, true
 		} else {
-			return false
+			return nil, false
+		}
+	}
+}
+
+func RegexHandler(pattern *regex.Pattern, handler TokenizationHandler) TokenizationHandler {
+	return func(lex *Lexer) (*Token, bool) {
+		if _, valid := pattern.MatchSourceStart(lex.remainder()); valid {
+			return handler(lex)
+		} else {
+			return nil, false
 		}
 	}
 }

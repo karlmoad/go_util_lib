@@ -2,38 +2,68 @@ package lexer
 
 import (
 	"fmt"
+	"github.com/karlmoad/go_util_lib/generics/queue"
 	"github.com/karlmoad/go_util_lib/parsing"
 	"github.com/karlmoad/go_util_lib/parsing/dialect"
 	"strings"
 )
 
+type ExemptionCallback func(lex *Lexer) bool
+
 type Lexer struct {
-	Tokens  []Token
-	source  string
-	pos     int
-	length  int
-	dialect dialect.Dialect
-	reg     *Registry
+	Tokens         []Token
+	source         string
+	pos            int
+	length         int
+	dialect        dialect.Dialect
+	exemptionQueue queue.Queue[ExemptionCallback]
+	reg            *Registry
 }
 
 func NewLexer(source string, dialect dialect.Dialect) *Lexer {
 	t := &Lexer{
-		Tokens:  make([]Token, 0),
-		source:  source,
-		pos:     0,
-		length:  len(source),
-		dialect: dialect,
-		reg:     newLexerRegistry(),
+		Tokens:         make([]Token, 0),
+		source:         source,
+		pos:            0,
+		length:         len(source),
+		dialect:        dialect,
+		reg:            newLexerRegistry(),
+		exemptionQueue: queue.NewLIFOQueue[ExemptionCallback](),
 	}
 	t.dialect.RegisterLexer(t.reg)
 	return t
 }
 
+func (l *Lexer) processExemptions() {
+	//iterate exemption queue until empty or current == false
+	if l.exemptionQueue.Depth() > 0 {
+		for {
+			if funq, valid := l.exemptionQueue.Current(); valid {
+				if funq(l) {
+					l.exemptionQueue.Dequeue()
+				} else {
+					break
+				}
+			} else {
+				break
+			}
+		}
+	}
+}
+
 func (l *Lexer) Tokenize() error {
 	for !l.isEOF() {
-		matched := l.reg.EvaluateTokenizationHandlers(l)
+		token, matched := l.reg.EvaluateTokenizationHandlers(l)
 		if !matched {
 			return parsing.NewHandlerError(fmt.Sprintf("Tokenizer::Error -> unexpected token near [%d]", l.pos), l.pos)
+		}
+
+		//review exemptions
+		l.processExemptions()
+
+		//only push the token into the list if exemptions are clear
+		if l.exemptionQueue.Depth() <= 0 {
+			l.push(*token)
 		}
 	}
 
@@ -41,8 +71,16 @@ func (l *Lexer) Tokenize() error {
 	return nil
 }
 
+func (l *Lexer) Advance(n int) {
+	l.advance(n)
+}
+
 func (l *Lexer) advance(n int) {
 	l.pos += n
+}
+
+func (l *Lexer) PushToken(token Token) {
+	l.push(token)
 }
 
 func (l *Lexer) push(token Token) {
@@ -51,6 +89,10 @@ func (l *Lexer) push(token Token) {
 
 func (l *Lexer) at() byte {
 	return l.source[l.pos]
+}
+
+func (l *Lexer) Remainder() string {
+	return l.remainder()
 }
 
 func (l *Lexer) remainder() string {
@@ -95,4 +137,12 @@ func (l *Lexer) GetContext(start int, end int) string {
 		buffer = append(buffer, fmt.Sprintf("[#(%d) %s]:%s", position, l.TokenKindString(token.Kind), token.Value))
 	}
 	return strings.Join(buffer, ", ")
+}
+
+func (l *Lexer) PushExemptionCallback(exemption ExemptionCallback) {
+	l.exemptionQueue.Enqueue(exemption)
+}
+
+func (l *Lexer) ResetExemptions() {
+	l.exemptionQueue.Clear()
 }
