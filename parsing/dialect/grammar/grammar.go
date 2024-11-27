@@ -3,6 +3,8 @@ package grammar
 import (
 	"github.com/karlmoad/go_util_lib/common/regex"
 	"github.com/karlmoad/go_util_lib/common/state"
+	"github.com/karlmoad/go_util_lib/generics/queue"
+	"github.com/karlmoad/go_util_lib/parsing/ast"
 	"github.com/karlmoad/go_util_lib/parsing/dialect"
 	"github.com/karlmoad/go_util_lib/parsing/lexer"
 	"github.com/karlmoad/go_util_lib/parsing/parser"
@@ -106,7 +108,8 @@ var tokenKindMap = map[lexer.TokenKind]string{
 }
 
 type Grammar struct {
-	state state.Depth
+	state      state.Depth
+	eventQueue queue.Queue[lexer.TokenKind]
 }
 
 func NewGrammarDialect() dialect.Dialect {
@@ -151,7 +154,7 @@ func (g *Grammar) RegisterLexer(reg *lexer.Registry) {
 
 func (g *Grammar) RegisterParser(reg *parser.Registry) {}
 
-//<editor-fold desc="lexicographical handlers">
+//<editor-fold desc="lexicographical handlers and callbacks">
 
 func (g *Grammar) SkipHandler(pattern *regex.Pattern) lexer.TokenizationHandler {
 	return func(lex *lexer.Lexer) (*lexer.Token, bool) {
@@ -172,7 +175,7 @@ func (g *Grammar) MultilineCommentHandler(lex *lexer.Lexer) (*lexer.Token, bool)
 	if match, valid := multilineCommentOpenPattern.MatchSourceStart(lex.Remainder()); valid {
 		lex.Advance(len(match))
 		if !g.state.CurrentState() {
-			lex.PushExemptionCallback(g.CommentExemptionCallback)
+			lex.PushCallback(g.CommentExemptionCallback)
 		}
 		g.state.Increase()
 		return nil, true
@@ -184,6 +187,23 @@ func (g *Grammar) MultilineCommentHandler(lex *lexer.Lexer) (*lexer.Token, bool)
 		return nil, true
 	}
 	return nil, false
+}
+
+//</editor-fold>
+
+//<editor-fold desc="Parsing Handlers and callbacks">
+
+func NewExpressionCallback(p *parser.Parser) bool {
+
+}
+
+func GroupingStatementCallback(p *parser.Parser) bool {
+
+}
+
+func NewExpressionHnadler(p *parser.Parser) (ast.ObjType, bool) {
+	// push NewExpressionCallback onto parser callback list
+
 }
 
 //</editor-fold>

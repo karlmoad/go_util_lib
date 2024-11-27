@@ -11,23 +11,25 @@ import (
 	"strings"
 )
 
+type ParseCallback func(p *Parser) bool
+
 type Parser struct {
-	lex        *lexer.Lexer
-	reg        *Registry
-	pos        int
-	depth      int
-	dialect    dialect.Dialect
-	eventQueue queue.Queue[ConditionHandler]
+	lex           *lexer.Lexer
+	reg           *Registry
+	pos           int
+	depth         int
+	dialect       dialect.Dialect
+	callbackQueue queue.Queue[ParseCallback]
 }
 
 func NewParser(source string, dialect dialect.Dialect) *Parser {
 	p := &Parser{
-		pos:        0,
-		reg:        newRegistry(),
-		lex:        lexer.NewLexer(source, dialect),
-		depth:      0,
-		dialect:    dialect,
-		eventQueue: queue.NewLIFOQueue[ConditionHandler](),
+		pos:           0,
+		reg:           newRegistry(),
+		lex:           lexer.NewLexer(source, dialect),
+		depth:         0,
+		dialect:       dialect,
+		callbackQueue: queue.NewLIFOQueue[ParseCallback](),
 	}
 	p.dialect.RegisterParser(p.reg)
 	return p
@@ -116,7 +118,7 @@ func (p *Parser) Parse() ([]ast.ObjType, error) {
 
 func parseObject(p *Parser) (ast.ObjType, error) {
 	//check if escape conditions are met, if so return nil
-	if checkEscapeConditions(p) {
+	if checkEscapeConditions(p) { // <-- eval callbacks
 		return nil, nil // signal escape encountered by returning null, no error
 	}
 
@@ -129,17 +131,4 @@ func parseObject(p *Parser) (ast.ObjType, error) {
 		// propagate error
 		return nil, parsing.NewHandlerError("parsing handler fault, invalid object returned", p.pos)
 	}
-}
-
-func checkEscapeConditions(p *Parser) bool {
-	if p.eventQueue.Depth() > 0 {
-		if funq, valid := p.eventQueue.Current(); valid {
-			if trigger := funq(p); trigger {
-				p.eventQueue.Dequeue()
-				return true
-			}
-		}
-	}
-
-	return p.reg.evaluateEscapeConditions(p)
 }

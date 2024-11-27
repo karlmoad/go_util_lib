@@ -8,39 +8,41 @@ import (
 	"strings"
 )
 
-type ExemptionCallback func(lex *Lexer) bool
+type LexCallback func(lex *Lexer) bool
 
 type Lexer struct {
-	Tokens         []Token
-	source         string
-	pos            int
-	length         int
-	dialect        dialect.Dialect
-	exemptionQueue queue.Queue[ExemptionCallback]
-	reg            *Registry
+	Tokens        []Token
+	source        string
+	pos           int
+	length        int
+	dialect       dialect.Dialect
+	callbackQueue queue.Queue[LexCallback]
+	reg           *Registry
 }
 
 func NewLexer(source string, dialect dialect.Dialect) *Lexer {
 	t := &Lexer{
-		Tokens:         make([]Token, 0),
-		source:         source,
-		pos:            0,
-		length:         len(source),
-		dialect:        dialect,
-		reg:            newLexerRegistry(),
-		exemptionQueue: queue.NewLIFOQueue[ExemptionCallback](),
+		Tokens:        make([]Token, 0),
+		source:        source,
+		pos:           0,
+		length:        len(source),
+		dialect:       dialect,
+		reg:           newLexerRegistry(),
+		callbackQueue: queue.NewLIFOQueue[LexCallback](),
 	}
 	t.dialect.RegisterLexer(t.reg)
 	return t
 }
 
-func (l *Lexer) processExemptions() {
+func (l *Lexer) processCallbacks() bool {
+	var ret bool
+
 	//iterate exemption queue until empty or current == false
-	if l.exemptionQueue.Depth() > 0 {
+	if l.callbackQueue.Depth() > 0 {
 		for {
-			if funq, valid := l.exemptionQueue.Current(); valid {
-				if funq(l) {
-					l.exemptionQueue.Dequeue()
+			if funq, valid := l.callbackQueue.Current(); valid {
+				if ret = funq(l); ret {
+					l.callbackQueue.Dequeue()
 				} else {
 					break
 				}
@@ -48,7 +50,10 @@ func (l *Lexer) processExemptions() {
 				break
 			}
 		}
+	} else {
+		return true
 	}
+	return ret && l.callbackQueue.Depth() == 0
 }
 
 func (l *Lexer) Tokenize() error {
@@ -58,11 +63,9 @@ func (l *Lexer) Tokenize() error {
 			return parsing.NewHandlerError(fmt.Sprintf("Tokenizer::Error -> unexpected token near [%d]", l.pos), l.pos)
 		}
 
-		//review exemptions
-		l.processExemptions()
-
-		//only push the token into the list if exemptions are clear
-		if l.exemptionQueue.Depth() <= 0 {
+		//review callbacks for any exemptions
+		//only push the token into the list if clear
+		if l.processCallbacks() {
 			l.push(*token)
 		}
 	}
@@ -139,10 +142,10 @@ func (l *Lexer) GetContext(start int, end int) string {
 	return strings.Join(buffer, ", ")
 }
 
-func (l *Lexer) PushExemptionCallback(exemption ExemptionCallback) {
-	l.exemptionQueue.Enqueue(exemption)
+func (l *Lexer) PushCallback(exemption LexCallback) {
+	l.callbackQueue.Enqueue(exemption)
 }
 
-func (l *Lexer) ResetExemptions() {
-	l.exemptionQueue.Clear()
+func (l *Lexer) ResetCallbacks() {
+	l.callbackQueue.Clear()
 }

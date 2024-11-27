@@ -26,3 +26,5 @@ func (e *InvalidValueError) Error() string {
 func NewInvalidValueError(message string) *InvalidValueError {
 	return &InvalidValueError{Message: message}
 }
+
+type EventHandler func(context interface{}) bool
