@@ -5,27 +5,27 @@ import (
 )
 
 type Registry struct {
-	conditions       []ConditionHandler
+	conditions       []Condition
 	handlers         []ParsingHandler
 	defaultHandler   ParsingHandler
-	escapeConditions []ConditionHandler
+	escapeConditions []Condition
 	mut              sync.Mutex
 }
 
 func newRegistry() *Registry {
-	return &Registry{conditions: make([]ConditionHandler, 0),
+	return &Registry{conditions: make([]Condition, 0),
 		handlers:         make([]ParsingHandler, 0),
-		escapeConditions: make([]ConditionHandler, 0)}
+		escapeConditions: make([]Condition, 0)}
 }
 
-func (r *Registry) RegisterHandler(condition ConditionHandler, handler ParsingHandler) {
+func (r *Registry) RegisterHandler(condition Condition, handler ParsingHandler) {
 	r.mut.Lock()
 	defer r.mut.Unlock()
 	r.conditions = append(r.conditions, condition)
 	r.handlers = append(r.handlers, handler)
 }
 
-func (r *Registry) RegisterGlobalEscapeHandlers(condition ConditionHandler) {
+func (r *Registry) RegisterGlobalEscapeHandlers(condition Condition) {
 	r.mut.Lock()
 	defer r.mut.Unlock()
 	r.escapeConditions = append(r.escapeConditions, condition)

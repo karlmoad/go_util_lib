@@ -7,6 +7,7 @@ import (
 	"github.com/karlmoad/go_util_lib/parsing/ast"
 	"github.com/karlmoad/go_util_lib/parsing/dialect"
 	"github.com/karlmoad/go_util_lib/parsing/lexer"
+	"log/slog"
 	"math"
 	"strings"
 )
@@ -20,6 +21,7 @@ type Parser struct {
 	depth         int
 	dialect       dialect.Dialect
 	callbackQueue queue.Queue[ParseCallback]
+	logger        *slog.Logger
 }
 
 func NewParser(source string, dialect dialect.Dialect) *Parser {
@@ -30,13 +32,26 @@ func NewParser(source string, dialect dialect.Dialect) *Parser {
 		depth:         0,
 		dialect:       dialect,
 		callbackQueue: queue.NewLIFOQueue[ParseCallback](),
+		logger:        slog.Default(),
 	}
 	p.dialect.RegisterParser(p.reg)
 	return p
 }
 
+func (p *Parser) GetLogger() *slog.Logger {
+	return p.logger
+}
+
+func (p *Parser) CurrentToken() lexer.Token {
+	return p.currentToken()
+}
+
 func (p *Parser) currentToken() lexer.Token {
 	return p.lex.Tokens[p.pos]
+}
+
+func (p *Parser) Advance() lexer.Token {
+	return p.advance()
 }
 
 func (p *Parser) advance() lexer.Token {
@@ -59,6 +74,10 @@ func (p *Parser) peek(n int) lexer.Token {
 	return p.lex.Tokens[tPos]
 }
 
+func (p *Parser) PeekNext() lexer.Token {
+	return p.next()
+}
+
 func (p *Parser) next() lexer.Token {
 	return p.peek(1)
 }
@@ -67,7 +86,11 @@ func (p *Parser) prev() lexer.Token {
 	return p.peek(-1)
 }
 
-func (p *Parser) expect(expectedKind ...lexer.TokenKind) {
+func (p *Parser) Expect(kind ...lexer.TokenKind) error {
+	return p.expect(kind...)
+}
+
+func (p *Parser) expect(expectedKind ...lexer.TokenKind) error {
 	if !p.currentToken().IsKindOf(expectedKind...) {
 		kinds := make([]string, 0)
 		for _, kind := range expectedKind {
@@ -82,8 +105,9 @@ func (p *Parser) expect(expectedKind ...lexer.TokenKind) {
 			p.pos,
 			stream)
 
-		panic(err)
+		return parsing.NewUnexpectedTokenError(err)
 	}
+	return nil
 }
 
 func (p *Parser) errorContext() string {
@@ -102,7 +126,7 @@ func (p *Parser) Parse() ([]ast.ObjType, error) {
 			break
 		}
 
-		obj, err := parseObject(p)
+		obj, err := p.ParseNext()
 		if err != nil {
 			return nil, err
 		} else {
@@ -116,10 +140,10 @@ func (p *Parser) Parse() ([]ast.ObjType, error) {
 	return objects, nil
 }
 
-func parseObject(p *Parser) (ast.ObjType, error) {
+func (p *Parser) ParseNext() (ast.ObjType, error) {
 	//check if escape conditions are met, if so return nil
-	if checkEscapeConditions(p) { // <-- eval callbacks
-		return nil, nil // signal escape encountered by returning null, no error
+	if p.evalCallbacks() { // <-- eval callbacks
+		return nil, nil // signaled callback encountered by returning null, no error
 	}
 
 	p.depth++
@@ -131,4 +155,33 @@ func parseObject(p *Parser) (ast.ObjType, error) {
 		// propagate error
 		return nil, parsing.NewHandlerError("parsing handler fault, invalid object returned", p.pos)
 	}
+}
+
+func (p *Parser) evalCallbacks() bool {
+	var ret bool
+	//iterate exemption queue until empty or current == false
+	if p.callbackQueue.Depth() > 0 {
+		for {
+			if funq, valid := p.callbackQueue.Current(); valid {
+				if ret = funq(p); ret {
+					p.callbackQueue.Dequeue()
+				} else {
+					break
+				}
+			} else {
+				break
+			}
+		}
+	} else {
+		return true
+	}
+	return ret && p.callbackQueue.Depth() == 0
+}
+
+func (p *Parser) PushCallback(cb ParseCallback) {
+	p.callbackQueue.Enqueue(cb)
+}
+
+func (p *Parser) ResetCallbacks() {
+	p.callbackQueue.Clear()
 }

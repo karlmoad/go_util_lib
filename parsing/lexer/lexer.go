@@ -142,8 +142,8 @@ func (l *Lexer) GetContext(start int, end int) string {
 	return strings.Join(buffer, ", ")
 }
 
-func (l *Lexer) PushCallback(exemption LexCallback) {
-	l.callbackQueue.Enqueue(exemption)
+func (l *Lexer) PushCallback(cb LexCallback) {
+	l.callbackQueue.Enqueue(cb)
 }
 
 func (l *Lexer) ResetCallbacks() {

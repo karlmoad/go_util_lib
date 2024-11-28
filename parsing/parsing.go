@@ -27,4 +27,16 @@ func NewInvalidValueError(message string) *InvalidValueError {
 	return &InvalidValueError{Message: message}
 }
 
+type UnexpectedTokenError struct {
+	Context string
+}
+
+func (e *UnexpectedTokenError) Error() string {
+	return e.Context
+}
+
+func NewUnexpectedTokenError(context string) *UnexpectedTokenError {
+	return &UnexpectedTokenError{Context: context}
+}
+
 type EventHandler func(context interface{}) bool

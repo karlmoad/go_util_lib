@@ -6,9 +6,9 @@ import (
 )
 
 type ParsingHandler func(p *Parser) (ast.ObjType, bool)
-type ConditionHandler func(p *Parser) bool
+type Condition func(p *Parser) bool
 
-func TokenTypeConditionHandler(kind lexer.TokenKind) ConditionHandler {
+func TokenTypeCondition(kind lexer.TokenKind) Condition {
 	return func(p *Parser) bool {
 		return p.currentToken().Kind == kind
 	}
