@@ -7,29 +7,35 @@ import (
 
 type RuleExpr struct {
 	Identifier lexer.Token
-	Body       ast.Expression
+	Body       ast.Element
 }
 
 func (g RuleExpr) Expr() {}
-func (g RuleExpr) Obj()  {}
+func (g RuleExpr) Elem() string {
+	return "Rule Expression"
+}
 
-type StringOrIdentifierExpr struct {
+type StringOrIdentifierStmt struct {
 	Value     string
 	TokenType lexer.TokenKind
 }
 
-func (s StringOrIdentifierExpr) Expr() {}
-func (s StringOrIdentifierExpr) Obj()  {}
-
-type BodyExpr struct {
-	Elements []ast.Expression
+func (s StringOrIdentifierStmt) Stmt() {}
+func (s StringOrIdentifierStmt) Elem() string {
+	return "String Or Identifier Statement"
 }
 
-func (b BodyExpr) Expr() {}
-func (b BodyExpr) Obj()  {}
+type BodyStmt struct {
+	Elements []ast.Element
+}
+
+func (b BodyStmt) Expr() {}
+func (b BodyStmt) Elem() string {
+	return "Body Statement"
+}
 
 type SetExpr struct {
-	BodyExpr
+	BodyStmt   BodyStmt
 	IsOptional bool
 	IsGrouped  bool
 	IsRepeated bool
@@ -37,19 +43,25 @@ type SetExpr struct {
 }
 
 func (g SetExpr) Expr() {}
-func (g SetExpr) Obj()  {}
+func (g SetExpr) Elem() string {
+	return "Set Expression"
+}
 
-type UnknownExpr struct {
+type UnknownStmt struct {
 	Token lexer.Token
 	Pos   int
 }
 
-func (g UnknownExpr) Expr() {}
-func (g UnknownExpr) Obj()  {}
+func (g UnknownStmt) Expr() {}
+func (g UnknownStmt) Elem() string {
+	return "Unknown Statement"
+}
 
 type AlternativeExpr struct {
-	Alternate ast.Expression
+	Alternate ast.Element
 }
 
 func (a AlternativeExpr) Expr() {}
-func (a AlternativeExpr) Obj()  {}
+func (a AlternativeExpr) Elem() string {
+	return "Alternative Expression"
+}

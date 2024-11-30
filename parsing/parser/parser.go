@@ -38,6 +38,10 @@ func NewParser(source string, dialect dialect.Dialect) *Parser {
 	return p
 }
 
+func (p *Parser) Pos() int {
+	return p.pos
+}
+
 func (p *Parser) GetLogger() *slog.Logger {
 	return p.logger
 }
@@ -58,6 +62,10 @@ func (p *Parser) advance() lexer.Token {
 	token := p.currentToken()
 	p.pos++
 	return token
+}
+
+func (p *Parser) HasMoreTokens() bool {
+	return p.hasMoreTokens()
 }
 
 func (p *Parser) hasMoreTokens() bool {
@@ -114,46 +122,49 @@ func (p *Parser) errorContext() string {
 	return p.lex.GetContext(p.pos-10, p.pos+10)
 }
 
-func (p *Parser) Parse() ([]ast.ObjType, error) {
+func (p *Parser) Parse() ([]ast.Element, error) {
 	if err := p.lex.Tokenize(); err != nil {
 		return nil, err
 	}
 
-	objects := make([]ast.ObjType, 0)
+	elem := make([]ast.Element, 0)
 
 	for p.hasMoreTokens() {
 		if p.currentToken().Kind == lexer.EOF {
 			break
 		}
 
-		obj, err := p.ParseNext()
+		el, err := p.ParseNext()
 		if err != nil {
 			return nil, err
 		} else {
-			if obj != nil {
-				objects = append(objects, obj)
+			if el != nil {
+				elem = append(elem, el)
 			} else {
 				break
 			}
 		}
 	}
-	return objects, nil
+	return elem, nil
 }
 
-func (p *Parser) ParseNext() (ast.ObjType, error) {
+func (p *Parser) ParseNext() (ast.Element, error) {
 	//check if escape conditions are met, if so return nil
 	if p.evalCallbacks() { // <-- eval callbacks
-		return nil, nil // signaled callback encountered by returning null, no error
+		return nil, nil // signaled callback encountered , return null, no error
 	}
 
 	p.depth++
 	defer func() { p.depth-- }()
 	handler := p.reg.evaluateConditions(p)
-	if obj, valid := handler(p); valid {
+	if obj, valid, err := handler(p); valid {
 		return obj, nil
 	} else {
-		// propagate error
-		return nil, parsing.NewHandlerError("parsing handler fault, invalid object returned", p.pos)
+		if err != nil {
+			return nil, parsing.NewHandlerError(err.Error(), p.pos)
+		} else {
+			return nil, parsing.NewHandlerError("parsing handler fault, invalid object returned", p.pos)
+		}
 	}
 }
 

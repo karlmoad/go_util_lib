@@ -8,6 +8,6 @@ type Statement interface {
 	Stmt()
 }
 
-type ObjType interface {
-	Obj()
+type Element interface {
+	Elem() string
 }

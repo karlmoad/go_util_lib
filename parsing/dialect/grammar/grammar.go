@@ -1,7 +1,6 @@
 package grammar
 
 import (
-	"fmt"
 	"github.com/karlmoad/go_util_lib/common/regex"
 	"github.com/karlmoad/go_util_lib/common/state"
 	"github.com/karlmoad/go_util_lib/generics/queue"
@@ -109,12 +108,12 @@ var tokenKindMap = map[lexer.TokenKind]string{
 }
 
 type Grammar struct {
-	state      state.Depth
-	eventQueue queue.Queue[lexer.TokenKind]
+	state       state.Depth
+	markerQueue queue.Queue[lexer.TokenKind]
 }
 
 func NewGrammarDialect() dialect.Dialect {
-	return &Grammar{}
+	return &Grammar{markerQueue: queue.NewLIFOQueue[lexer.TokenKind]()}
 }
 
 func (g *Grammar) RegisterLexer(reg *lexer.Registry) {
@@ -153,7 +152,16 @@ func (g *Grammar) RegisterLexer(reg *lexer.Registry) {
 
 }
 
-func (g *Grammar) RegisterParser(reg *parser.Registry) {}
+func (g *Grammar) RegisterParser(reg *parser.Registry) {
+	reg.RegisterDefaultHandler(g.UnknownStatementHandler)
+	reg.RegisterHandler(g.IsNewExpr, g.NewExpressionHandler)
+	reg.RegisterHandler(parser.TokenKindCondition(IDENTIFIER), g.StringOrIdentifierHandler)
+	reg.RegisterHandler(parser.TokenKindCondition(STRING), g.StringOrIdentifierHandler)
+	reg.RegisterHandler(parser.TokenKindCondition(OR), g.AlternativeHandler)
+	reg.RegisterHandler(parser.TokenKindCondition(OPEN_PAREN), g.GroupedExprHandler(OPEN_PAREN, CLOSE_PAREN, true, false, false))
+	reg.RegisterHandler(parser.TokenKindCondition(OPEN_BRACKET), g.GroupedExprHandler(OPEN_BRACKET, CLOSE_BRACKET, false, true, false))
+	reg.RegisterHandler(parser.TokenKindCondition(OPEN_BRACE), g.GroupedExprHandler(OPEN_BRACE, CLOSE_BRACE, false, false, true))
+}
 
 //<editor-fold desc="lexicographical handlers and callbacks">
 
@@ -194,113 +202,125 @@ func (g *Grammar) MultilineCommentHandler(lex *lexer.Lexer) (*lexer.Token, bool)
 
 //<editor-fold desc="Parsing Handlers and callbacks">
 
-func (g *Grammar) isNewExpr(p *parser.Parser) bool {
+func (g *Grammar) IsNewExpr(p *parser.Parser) bool {
 	return p.CurrentToken().Kind == IDENTIFIER && p.PeekNext().Kind == OPERATOR
 }
 
 func (g *Grammar) NewExpressionCallback(p *parser.Parser) bool {
-	return g.isNewExpr(p)
+	return g.IsNewExpr(p)
 }
 
 func (g *Grammar) GroupingStatementCallback(p *parser.Parser) bool {
 
 }
 
-func (g *Grammar) NewExpressionHandler(p *parser.Parser) (ast.ObjType, bool) {
-	if g.isNewExpr(p) {
+func (g *Grammar) NewExpressionHandler(p *parser.Parser) (ast.Element, bool, error) {
+	if g.IsNewExpr(p) {
 		p.PushCallback(g.NewExpressionCallback)
 
 		if err := p.Expect(IDENTIFIER); err != nil {
-			logger := p.GetLogger().With("handler", "ebnf grammar (NewExpressionHandler)")
-			logger.Error(err.Error())
-			return nil, false
+			return nil, false, err
 		}
-		rule := ast.GrammarRuleExpr{}
-		rule.Identifier = p.advance()
-		p.expect(lexer.OPERATOR)
-		p.advance()
-		expr := make([]ast.Expr, 0)
+		rule := RuleExpr{}
+		rule.Identifier = p.Advance()
+		if err := p.Expect(OPERATOR); err != nil {
+			return nil, false, err
+		}
+		p.Advance()
+		elem := make([]ast.Element, 0)
 		for {
 			if p.HasMoreTokens() {
-				if e := parseExpr(p); e != nil {
-					expr = append(expr, e)
+				if e, err := p.ParseNext(); e != nil && err == nil {
+					elem = append(elem, e)
 				} else {
-					break
+					if err != nil {
+						return nil, false, err
+					} else {
+						break
+					}
 				}
 			} else {
 				break
 			}
 		}
-		rule.Body = ast.BodyExpr{Elements: expr}
-		return rule, true
+		rule.Body = BodyStmt{Elements: elem}
+		return rule, true, nil
 	}
-	return nil, false
+	return nil, false, nil
 }
 
-func (g *Grammar) AlternativeHandler(p *Parser) (ast.Expr, bool) {
-	p.expect(lexer.OR)
-	p.advance()
-	expr := make([]ast.Expr, 0)
+func (g *Grammar) AlternativeHandler(p *parser.Parser) (ast.Element, bool, error) {
+	if err := p.Expect(IDENTIFIER); err != nil {
+		return nil, false, err
+	}
+
+	p.Advance()
+	elem := make([]ast.Element, 0)
 	for {
-		if ex := parseExpr(p); ex != nil {
-			expr = append(expr, ex)
+		if el, err := p.ParseNext(); el != nil && err == nil {
+			elem = append(elem, el)
 		} else {
+			if err != nil {
+				return nil, false, err
+			}
 			break
 		}
 	}
-	body := ast.BodyExpr{Elements: expr}
-	return ast.AlternativeExpr{Alternate: body}, true
+	body := BodyStmt{Elements: elem}
+	return AlternativeExpr{Alternate: body}, true, nil
 }
 
-func (g *Grammar) stringOrIdentifierHandler(p *Parser) (ast.Expr, bool) {
-	p.expect(lexer.STRING, lexer.IDENTIFIER)
-	expr := ast.StringOrIdentifierExpr{Value: p.currentToken().Value, TokenType: p.currentToken().Kind}
-	p.advance()
-	return expr, true
+func (g *Grammar) StringOrIdentifierHandler(p *parser.Parser) (ast.Element, bool, error) {
+	if err := p.Expect(STRING, IDENTIFIER); err != nil {
+		return nil, false, err
+	}
+	elmt := StringOrIdentifierStmt{Value: p.CurrentToken().Value, TokenType: p.CurrentToken().Kind}
+	p.Advance()
+	return elmt, true, nil
 }
 
-func (g *Grammar) unknownTypeExprHandler(p *Parser) (ast.Expr, bool) {
-	return ast.UnknownExpr{Token: p.advance(), Pos: p.pos}, true
+func (g *Grammar) UnknownStatementHandler(p *parser.Parser) (ast.Element, bool, error) {
+	return UnknownStmt{Token: p.Advance(), Pos: p.Pos()}, true, nil
 }
 
-func (g *Grammar) groupedExprHandler(open lexer.TokenKind, close lexer.TokenKind, group, optional, repeat bool) ExprHandler {
-	return func(p *Parser) (ast.Expr, bool) {
-		checkClose := func(p *Parser) bool {
-			//See if the current token is a registered grouping indicator
-			if alt, ok := p.reg.groupingTokens[p.currentToken().Kind]; ok {
-				if open == alt {
-					return true
-				} else {
-					panic(fmt.Sprintf("grouping termination mismatch expected %s got %s : [%d]", lexer.TokenKindToString(close), lexer.TokenKindToString(p.currentToken().Kind), p.pos))
-				}
+func (g *Grammar) GroupedExprHandler(open lexer.TokenKind, close lexer.TokenKind, group, optional, repeat bool) parser.ParsingHandler {
+	return func(p *parser.Parser) (ast.Element, bool, error) {
+		checkClose := func(p *parser.Parser) bool {
+			if close == p.CurrentToken().Kind {
+				return true
 			}
 			return false
 		}
 
-		p.expect(open)
-		p.eventQueue.Enqueue(checkClose)
-		p.advance()
-		expr := make([]ast.Expr, 0)
+		if err := p.Expect(open); err != nil {
+			return nil, false, err
+		}
+
+		p.PushCallback(checkClose)
+		p.Advance()
+		elem := make([]ast.Element, 0)
 		for {
 			if checkClose(p) {
 				break
 			}
-			if ex := parseExpr(p); ex != nil {
-				expr = append(expr, ex)
+			if ex, err := p.ParseNext(); ex != nil && err == nil {
+				elem = append(elem, ex)
 			} else {
+				if err != nil {
+					return nil, false, err
+				}
 				break
 			}
 		}
-		p.expect(close)
-		p.advance()
-		body := ast.BodyExpr{Elements: expr}
-		exprSet := ast.SetExpr{BodyExpr: body, IsGrouped: group, IsOptional: optional, IsRepeated: repeat}
-		return exprSet, true
+
+		if err := p.Expect(close); err != nil {
+			return nil, false, err
+		}
+		p.Advance()
+		body := BodyStmt{Elements: elem}
+		exprSet := SetExpr{BodyStmt: body, IsGrouped: group, IsOptional: optional, IsRepeated: repeat}
+		return exprSet, true, nil
 	}
-}
-
-func (g *Grammar) ruleExprHandler(p *Parser) (ast.Expr, bool) {
-
 }
 
 //</editor-fold>
