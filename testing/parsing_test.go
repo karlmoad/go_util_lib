@@ -2,8 +2,7 @@ package testing
 
 import (
 	"fmt"
-	"github.com/karlmoad/go_util_lib/parsing/dialect/grammar"
-	"github.com/karlmoad/go_util_lib/parsing/parser"
+	"github.com/karlmoad/go_util_lib/parsing"
 	"os"
 	"testing"
 )
@@ -11,11 +10,13 @@ import (
 func TestParsing_parser(t *testing.T) {
 
 	bites, _ := os.ReadFile("test.ebnf")
-	dialect := grammar.NewGrammarDialect()
+	par, err := parsing.NewParserForDialect(parsing.GRAMMAR)
+	if err != nil {
+		t.Error(err)
+	}
 
-	p := parser.NewParser(string(bites), dialect)
 	fmt.Println("Starting Parse.")
-	expressions, err := p.Parse()
+	expressions, err := par.Parse(string(bites))
 	if err != nil {
 		t.Error(err)
 	}

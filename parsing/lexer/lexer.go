@@ -3,8 +3,7 @@ package lexer
 import (
 	"fmt"
 	"github.com/karlmoad/go_util_lib/generics/queue"
-	"github.com/karlmoad/go_util_lib/parsing"
-	"github.com/karlmoad/go_util_lib/parsing/dialect"
+	"github.com/karlmoad/go_util_lib/parsing/errors"
 	"strings"
 )
 
@@ -15,23 +14,24 @@ type Lexer struct {
 	source        string
 	pos           int
 	length        int
-	dialect       dialect.Dialect
 	callbackQueue queue.Queue[LexCallback]
 	reg           *Registry
 }
 
-func NewLexer(source string, dialect dialect.Dialect) *Lexer {
+func NewLexer(reg *Registry) *Lexer {
 	t := &Lexer{
 		Tokens:        make([]Token, 0),
-		source:        source,
+		source:        "",
 		pos:           0,
-		length:        len(source),
-		dialect:       dialect,
-		reg:           newLexerRegistry(),
+		length:        0,
+		reg:           reg,
 		callbackQueue: queue.NewLIFOQueue[LexCallback](),
 	}
-	t.dialect.RegisterLexer(t.reg)
 	return t
+}
+
+func (l *Lexer) getRegistry() *Registry {
+	return l.reg
 }
 
 func (l *Lexer) processCallbacks() bool {
@@ -56,11 +56,14 @@ func (l *Lexer) processCallbacks() bool {
 	return ret && l.callbackQueue.Depth() == 0
 }
 
-func (l *Lexer) Tokenize() error {
+func (l *Lexer) Tokenize(source string) error {
+	l.source = source
+	l.length = len(source)
+
 	for !l.isEOF() {
 		token, matched := l.reg.EvaluateTokenizationHandlers(l)
 		if !matched {
-			return parsing.NewHandlerError(fmt.Sprintf("Tokenizer::Error -> unexpected token near [%d]", l.pos), l.pos)
+			return errors.NewHandlerError(fmt.Sprintf("Tokenizer::Error -> unexpected token near [%d]", l.pos), l.pos)
 		}
 
 		//review callbacks for any exemptions

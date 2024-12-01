@@ -12,7 +12,7 @@ type Registry struct {
 	mut sync.Mutex
 }
 
-func newRegistry() *Registry {
+func NewParsingRegistry() *Registry {
 	return &Registry{conditions: make([]Condition, 0),
 		handlers: make([]ParsingHandler, 0)}
 	//escapeConditions: make([]Condition, 0)} TODO Remove

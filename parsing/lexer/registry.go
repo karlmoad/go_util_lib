@@ -7,7 +7,7 @@ type Registry struct {
 	tokenizationHandlers []TokenizationHandler
 }
 
-func newLexerRegistry() *Registry {
+func NewLexerRegistry() *Registry {
 	reg := &Registry{tokenKinds: make(map[TokenKind]string), tokenizationHandlers: make([]TokenizationHandler, 0)}
 	// add baseline values
 	reg.RegisterTokenKind(EOF, "EOF")

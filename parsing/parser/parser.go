@@ -3,9 +3,8 @@ package parser
 import (
 	"fmt"
 	"github.com/karlmoad/go_util_lib/generics/queue"
-	"github.com/karlmoad/go_util_lib/parsing"
 	"github.com/karlmoad/go_util_lib/parsing/ast"
-	"github.com/karlmoad/go_util_lib/parsing/dialect"
+	"github.com/karlmoad/go_util_lib/parsing/errors"
 	"github.com/karlmoad/go_util_lib/parsing/lexer"
 	"log/slog"
 	"math"
@@ -19,23 +18,24 @@ type Parser struct {
 	reg           *Registry
 	pos           int
 	depth         int
-	dialect       dialect.Dialect
 	callbackQueue queue.Queue[ParseCallback]
 	logger        *slog.Logger
 }
 
-func NewParser(source string, dialect dialect.Dialect) *Parser {
+func NewParser(reg *Registry, lexer *lexer.Lexer) *Parser {
 	p := &Parser{
 		pos:           0,
-		reg:           newRegistry(),
-		lex:           lexer.NewLexer(source, dialect),
+		reg:           reg,
+		lex:           lexer,
 		depth:         0,
-		dialect:       dialect,
 		callbackQueue: queue.NewLIFOQueue[ParseCallback](),
 		logger:        slog.Default(),
 	}
-	p.dialect.RegisterParser(p.reg)
 	return p
+}
+
+func (p *Parser) getRegistry() *Registry {
+	return p.reg
 }
 
 func (p *Parser) Pos() int {
@@ -113,7 +113,7 @@ func (p *Parser) expect(expectedKind ...lexer.TokenKind) error {
 			p.pos,
 			stream)
 
-		return parsing.NewUnexpectedTokenError(err)
+		return errors.NewUnexpectedTokenError(err)
 	}
 	return nil
 }
@@ -122,8 +122,8 @@ func (p *Parser) errorContext() string {
 	return p.lex.GetContext(p.pos-10, p.pos+10)
 }
 
-func (p *Parser) Parse() ([]ast.Element, error) {
-	if err := p.lex.Tokenize(); err != nil {
+func (p *Parser) Parse(source string) ([]ast.Element, error) {
+	if err := p.lex.Tokenize(source); err != nil {
 		return nil, err
 	}
 
@@ -161,9 +161,9 @@ func (p *Parser) ParseNext() (ast.Element, error) {
 		return obj, nil
 	} else {
 		if err != nil {
-			return nil, parsing.NewHandlerError(err.Error(), p.pos)
+			return nil, errors.NewHandlerError(err.Error(), p.pos)
 		} else {
-			return nil, parsing.NewHandlerError("parsing handler fault, invalid object returned", p.pos)
+			return nil, errors.NewHandlerError("parsing handler fault, invalid object returned", p.pos)
 		}
 	}
 }

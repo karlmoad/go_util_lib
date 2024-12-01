@@ -1,9 +1,12 @@
-package state
+package testing
 
-import "testing"
+import (
+	"github.com/karlmoad/go_util_lib/common/state"
+	"testing"
+)
 
 func TestDepth_State(t *testing.T) {
-	var depth Depth
+	var depth state.Depth
 
 	if depth.CurrentDepth() != 0 && depth.CurrentState() != false {
 		t.Errorf("Current depth should be 0 [state: %t], got %d [%t]", false, depth.CurrentDepth(), depth.CurrentState())

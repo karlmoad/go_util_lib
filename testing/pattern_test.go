@@ -1,6 +1,7 @@
-package regex
+package testing
 
 import (
+	"github.com/karlmoad/go_util_lib/common/regex"
 	"strings"
 	"testing"
 )
@@ -9,9 +10,9 @@ func TestPattern_MatchSourceStart(t *testing.T) {
 
 	testString := "[17] | Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed ultricies."
 
-	p1 := NewPattern(`^\[[0-9]+/]\s*\|\s*`)
-	p2 := NewPattern(`^Lorem\s+`)
-	p3 := NewPattern(`ipsum\s+sit`)
+	p1 := regex.NewPattern(`^\[[0-9]+/]\s*\|\s*`)
+	p2 := regex.NewPattern(`^Lorem\s+`)
+	p3 := regex.NewPattern(`ipsum\s+sit`)
 
 	if v1, valid := p1.MatchSourceStart(testString); valid {
 		testVal := "[17] | "

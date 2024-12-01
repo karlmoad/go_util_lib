@@ -5,7 +5,6 @@ import (
 	"github.com/karlmoad/go_util_lib/common/state"
 	"github.com/karlmoad/go_util_lib/generics/queue"
 	"github.com/karlmoad/go_util_lib/parsing/ast"
-	"github.com/karlmoad/go_util_lib/parsing/dialect"
 	"github.com/karlmoad/go_util_lib/parsing/lexer"
 	"github.com/karlmoad/go_util_lib/parsing/parser"
 )
@@ -112,7 +111,7 @@ type Grammar struct {
 	markerQueue queue.Queue[lexer.TokenKind]
 }
 
-func NewGrammarDialect() dialect.Dialect {
+func NewGrammarDialect() *Grammar {
 	return &Grammar{markerQueue: queue.NewLIFOQueue[lexer.TokenKind]()}
 }
 
@@ -210,9 +209,10 @@ func (g *Grammar) NewExpressionCallback(p *parser.Parser) bool {
 	return g.IsNewExpr(p)
 }
 
-func (g *Grammar) GroupingStatementCallback(p *parser.Parser) bool {
-
-}
+// TODO replace maybe
+//func (g *Grammar) GroupingStatementCallback(p *parser.Parser) bool {
+//
+//}
 
 func (g *Grammar) NewExpressionHandler(p *parser.Parser) (ast.Element, bool, error) {
 	if g.IsNewExpr(p) {

@@ -1,6 +1,8 @@
-package queue
+package testing
 
-import "testing"
+import (
+	"testing"
+)
 
 func TestFIFOQueue_Enqueue(t *testing.T) {
 	q := initAndFillQueue_int(false)

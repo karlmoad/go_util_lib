@@ -1,6 +1,8 @@
 package list
 
-import "testing"
+import (
+	"testing"
+)
 
 func TestLinkedList_Push(t *testing.T) {
 	ll := createAndFillIntList()
