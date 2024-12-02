@@ -7,7 +7,6 @@ import (
 	"github.com/karlmoad/go_util_lib/parsing/errors"
 	"github.com/karlmoad/go_util_lib/parsing/lexer"
 	"log/slog"
-	"math"
 	"strings"
 )
 
@@ -72,25 +71,32 @@ func (p *Parser) hasMoreTokens() bool {
 	return p.pos < len(p.lex.Tokens)-1 && p.currentToken().Kind != lexer.EOF
 }
 
-func (p *Parser) peek(n int) lexer.Token {
-	tPos := p.pos + int(math.Abs(math.Inf(n)))
+func (p *Parser) peek(n int) (lexer.Token, bool) {
+	tPos := p.pos + n
+	valid := true
 
 	if tPos >= len(p.lex.Tokens) {
 		tPos = len(p.lex.Tokens) - 1
+		valid = false
 	}
 
-	return p.lex.Tokens[tPos]
+	if tPos < 0 {
+		tPos = 0
+		valid = false
+	}
+
+	return p.lex.Tokens[tPos], valid
 }
 
-func (p *Parser) PeekNext() lexer.Token {
+func (p *Parser) PeekNext() (lexer.Token, bool) {
 	return p.next()
 }
 
-func (p *Parser) next() lexer.Token {
+func (p *Parser) next() (lexer.Token, bool) {
 	return p.peek(1)
 }
 
-func (p *Parser) prev() lexer.Token {
+func (p *Parser) prev() (lexer.Token, bool) {
 	return p.peek(-1)
 }
 
@@ -104,14 +110,10 @@ func (p *Parser) expect(expectedKind ...lexer.TokenKind) error {
 		for _, kind := range expectedKind {
 			kinds = append(kinds, p.lex.TokenKindString(kind))
 		}
-
-		stream := p.errorContext()
-		err := fmt.Sprintf("Expected %s but recieved %s:(%s) instead (index:%d)\n stream: %s\n",
-			strings.Join(kinds, "|"),
+		err := fmt.Sprintf("Expected %s but recieved %s:(%s)",
+			strings.Join(kinds, " or "),
 			p.lex.TokenKindString(p.currentToken().Kind),
-			p.currentToken().Value,
-			p.pos,
-			stream)
+			p.currentToken().Value)
 
 		return errors.NewUnexpectedTokenError(err)
 	}
@@ -134,7 +136,7 @@ func (p *Parser) Parse(source string) ([]ast.Element, error) {
 			break
 		}
 
-		el, err := p.ParseNext()
+		el, err := p.ProcessNextToken()
 		if err != nil {
 			return nil, err
 		} else {
@@ -148,10 +150,9 @@ func (p *Parser) Parse(source string) ([]ast.Element, error) {
 	return elem, nil
 }
 
-func (p *Parser) ParseNext() (ast.Element, error) {
-	//check if escape conditions are met, if so return nil
-	if p.evalCallbacks() { // <-- eval callbacks
-		return nil, nil // signaled callback encountered , return null, no error
+func (p *Parser) ProcessNextToken() (ast.Element, error) {
+	if p.evalCallbacks() {
+		return nil, nil
 	}
 
 	p.depth++
@@ -169,30 +170,28 @@ func (p *Parser) ParseNext() (ast.Element, error) {
 }
 
 func (p *Parser) evalCallbacks() bool {
-	var ret bool
-	//iterate exemption queue until empty or current == false
 	if p.callbackQueue.Depth() > 0 {
-		for {
-			if funq, valid := p.callbackQueue.Current(); valid {
-				if ret = funq(p); ret {
-					p.callbackQueue.Dequeue()
-				} else {
-					break
-				}
-			} else {
-				break
+		if funq, valid := p.callbackQueue.Current(); valid {
+			if ret := funq(p); ret {
+				return true
 			}
 		}
-	} else {
-		return true
 	}
-	return ret && p.callbackQueue.Depth() == 0
+	return p.reg.evaluateCallbacks(p)
 }
 
 func (p *Parser) PushCallback(cb ParseCallback) {
 	p.callbackQueue.Enqueue(cb)
 }
 
-func (p *Parser) ResetCallbacks() {
-	p.callbackQueue.Clear()
+func (p *Parser) CurrentCallback() (ParseCallback, bool) {
+	return p.callbackQueue.Current()
+}
+
+func (p *Parser) DequeueCurrentCallback() {
+	p.callbackQueue.Dequeue()
+}
+
+func (p *Parser) Depth() int {
+	return p.depth
 }

@@ -2,15 +2,17 @@
 this is a multiline test comment
 it is intended to test parsing conditions and their results, but also provide a small
 description of the file format
+/*
+This section is nested to provide testing for the detection and handling of such
 
 Format:
-    expression format is comprised of
-    1) With the exception of the first expression within source, all expressions must be proceeded by a blank line (\n)
+    expression format is composed of
+    1) Except the first expression within source, all expressions must be proceeded by a blank line (\n)
     2) An expression name, can be any alphanumeric value, including caps, and include underscores ( _ ) to segment words
     3) The Operator symbol ( ::= )
     4) The expression body.  Elements including Identifiers, Keywords, Literal Values ... represent the structure of the expression
         * Elements seperated by whitespace are considered to be AND operations
-        * Elements seperated by ( | ) character are considered to be OR operations (whitespace is ignored)
+        * Elements seperated by the "|" character are considered to be OR operations
 
 Note:
     This is a personal project library so the "Correctness" of the ebnf file format is subject to interpretation of the information
@@ -18,11 +20,8 @@ Note:
     dialect was built to fit the needs of objective.  The original objective of this project was to parse Oracle PL/SQL statements, so the structures within
     this format specification is aligned to that concept/source
 
-    Whitespace is generally ignored, with the exception of items listed prior
-
-
-The following is a sample of the ANSI SQL & OraclePL/SQL standards I was able to locate online
-
+*/
+/*Another Nested block without whitespace between comment symbols*/
 */
 user_defined_type_name ::=
   ( schema_name period )? qualified_identifier     // inline comment test, slash denoted
@@ -38,8 +37,8 @@ direct_SQL_data_statement ::=
 
 -- this is also an inline comment test, dash denoted
 simple_Latin_upper_case_letter ::=
-  "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H" | "I" | "J" | "K" | "L" | "M" | "N" | "O"
+  "A" | (("B" | "C") | ("D" "E" | "F"))? | "G" | "H" | "I" | "J" | "K" | "L" | "M" | "N" | "O"
 | "P" | "Q" | "R" | "S" | "T" | "U" | "V" | "W" | "X" | "Y" | "Z"
 
 digit ::=
-  "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"
+  ("0" | "1" | "2" | "3" | "4" )+ | ("5" | "6" | "7" | "8" | "9")*

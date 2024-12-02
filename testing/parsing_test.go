@@ -9,13 +9,12 @@ import (
 
 func TestParsing_parser(t *testing.T) {
 
-	bites, _ := os.ReadFile("test.ebnf")
+	bites, _ := os.ReadFile("test.txt")
 	par, err := parsing.NewParserForDialect(parsing.GRAMMAR)
 	if err != nil {
 		t.Error(err)
 	}
 
-	fmt.Println("Starting Parse.")
 	expressions, err := par.Parse(string(bites))
 	if err != nil {
 		t.Error(err)

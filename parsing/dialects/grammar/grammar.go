@@ -124,7 +124,7 @@ func (g *Grammar) RegisterLexer(reg *lexer.Registry) {
 	reg.RegisterTokenizationHandler(lexer.RegexHandler(dashCommentPattern, g.SkipHandler(dashCommentPattern)))
 	reg.RegisterTokenizationHandler(lexer.RegexHandler(slashCommentPattern, g.SkipHandler(slashCommentPattern)))
 	reg.RegisterTokenizationHandler(lexer.RegexHandler(multilineCommentOpenPattern, g.MultilineCommentHandler))
-	reg.RegisterTokenizationHandler(lexer.RegexHandler(multilineCommentClosePattern, g.MultilineCommentHandler))
+	//reg.RegisterTokenizationHandler(lexer.RegexHandler(multilineCommentClosePattern, g.MultilineCommentHandler))
 	reg.RegisterTokenizationHandler(lexer.RegexPatternHandler(doubleQuotedStringPattern, STRING))
 	reg.RegisterTokenizationHandler(lexer.RegexPatternHandler(singleQuotedStringPattern, STRING))
 	reg.RegisterTokenizationHandler(lexer.RegexPatternHandler(numberPattern, NUMBER))
@@ -160,6 +160,8 @@ func (g *Grammar) RegisterParser(reg *parser.Registry) {
 	reg.RegisterHandler(parser.TokenKindCondition(OPEN_PAREN), g.GroupedExprHandler(OPEN_PAREN, CLOSE_PAREN, true, false, false))
 	reg.RegisterHandler(parser.TokenKindCondition(OPEN_BRACKET), g.GroupedExprHandler(OPEN_BRACKET, CLOSE_BRACKET, false, true, false))
 	reg.RegisterHandler(parser.TokenKindCondition(OPEN_BRACE), g.GroupedExprHandler(OPEN_BRACE, CLOSE_BRACE, false, false, true))
+	reg.RegisterFixedCallback(g.NewExpressionCallback)
+	reg.RegisterFixedCallback(g.EOFCallback)
 }
 
 //<editor-fold desc="lexicographical handlers and callbacks">
@@ -175,23 +177,26 @@ func (g *Grammar) SkipHandler(pattern *regex.Pattern) lexer.TokenizationHandler 
 	}
 }
 
-func (g *Grammar) CommentExemptionCallback(lex *lexer.Lexer) bool {
-	return !g.state.CurrentState()
+func (g *Grammar) CommentStateCallback(lex *lexer.Lexer) bool {
+	if match, valid := multilineCommentClosePattern.MatchSourceStart(lex.Remainder()); valid {
+		lex.Advance(len(match))
+		g.state.Decrease()
+	} else {
+		if match, valid := multilineCommentOpenPattern.MatchSourceStart(lex.Remainder()); valid {
+			lex.Advance(len(match))
+			g.state.Increase()
+		} else {
+			lex.Advance(1)
+		}
+	}
+	return g.state.CurrentState() == false
 }
 
 func (g *Grammar) MultilineCommentHandler(lex *lexer.Lexer) (*lexer.Token, bool) {
 	if match, valid := multilineCommentOpenPattern.MatchSourceStart(lex.Remainder()); valid {
 		lex.Advance(len(match))
-		if !g.state.CurrentState() {
-			lex.PushCallback(g.CommentExemptionCallback)
-		}
+		lex.PushCallback(g.CommentStateCallback)
 		g.state.Increase()
-		return nil, true
-	}
-
-	if match, valid := multilineCommentClosePattern.MatchSourceStart(lex.Remainder()); valid {
-		lex.Advance(len(match))
-		g.state.Decrease()
 		return nil, true
 	}
 	return nil, false
@@ -201,22 +206,32 @@ func (g *Grammar) MultilineCommentHandler(lex *lexer.Lexer) (*lexer.Token, bool)
 
 //<editor-fold desc="Parsing Handlers and callbacks">
 
+func (g *Grammar) EOFCallback(p *parser.Parser) bool {
+	return p.CurrentToken().Kind == EOF
+}
+
 func (g *Grammar) IsNewExpr(p *parser.Parser) bool {
-	return p.CurrentToken().Kind == IDENTIFIER && p.PeekNext().Kind == OPERATOR
+	if p.CurrentToken().Kind == IDENTIFIER {
+		if t, valid := p.PeekNext(); valid {
+			if t.Kind == OPERATOR {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (g *Grammar) NewExpressionCallback(p *parser.Parser) bool {
-	return g.IsNewExpr(p)
+	if g.IsNewExpr(p) && p.Depth() > 0 {
+		p.DequeueCurrentCallback()
+		return true
+	}
+	return false
 }
-
-// TODO replace maybe
-//func (g *Grammar) GroupingStatementCallback(p *parser.Parser) bool {
-//
-//}
 
 func (g *Grammar) NewExpressionHandler(p *parser.Parser) (ast.Element, bool, error) {
 	if g.IsNewExpr(p) {
-		p.PushCallback(g.NewExpressionCallback)
+		//p.PushCallback(g.NewExpressionCallback)
 
 		if err := p.Expect(IDENTIFIER); err != nil {
 			return nil, false, err
@@ -230,7 +245,7 @@ func (g *Grammar) NewExpressionHandler(p *parser.Parser) (ast.Element, bool, err
 		elem := make([]ast.Element, 0)
 		for {
 			if p.HasMoreTokens() {
-				if e, err := p.ParseNext(); e != nil && err == nil {
+				if e, err := p.ProcessNextToken(); e != nil && err == nil {
 					elem = append(elem, e)
 				} else {
 					if err != nil {
@@ -250,14 +265,13 @@ func (g *Grammar) NewExpressionHandler(p *parser.Parser) (ast.Element, bool, err
 }
 
 func (g *Grammar) AlternativeHandler(p *parser.Parser) (ast.Element, bool, error) {
-	if err := p.Expect(IDENTIFIER); err != nil {
+	if err := p.Expect(OR); err != nil {
 		return nil, false, err
 	}
-
 	p.Advance()
 	elem := make([]ast.Element, 0)
 	for {
-		if el, err := p.ParseNext(); el != nil && err == nil {
+		if el, err := p.ProcessNextToken(); el != nil && err == nil {
 			elem = append(elem, el)
 		} else {
 			if err != nil {
@@ -300,21 +314,25 @@ func (g *Grammar) GroupedExprHandler(open lexer.TokenKind, close lexer.TokenKind
 		p.Advance()
 		elem := make([]ast.Element, 0)
 		for {
-			if checkClose(p) {
-				break
-			}
-			if ex, err := p.ParseNext(); ex != nil && err == nil {
+			ex, err := p.ProcessNextToken()
+			if ex != nil {
 				elem = append(elem, ex)
 			} else {
 				if err != nil {
 					return nil, false, err
+				} else {
+					break
 				}
-				break
 			}
 		}
 
 		if err := p.Expect(close); err != nil {
 			return nil, false, err
+		}
+		if cb, valid := p.CurrentCallback(); valid {
+			if cb(p) && p.CurrentToken().Kind == close {
+				p.DequeueCurrentCallback()
+			}
 		}
 		p.Advance()
 		body := BodyStmt{Elements: elem}

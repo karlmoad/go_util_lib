@@ -34,45 +34,39 @@ func (l *Lexer) getRegistry() *Registry {
 	return l.reg
 }
 
-func (l *Lexer) processCallbacks() bool {
-	var ret bool
-
-	//iterate exemption queue until empty or current == false
+func (l *Lexer) evaluateCallbacks() {
 	if l.callbackQueue.Depth() > 0 {
-		for {
-			if funq, valid := l.callbackQueue.Current(); valid {
-				if ret = funq(l); ret {
-					l.callbackQueue.Dequeue()
-				} else {
-					break
-				}
-			} else {
-				break
+		if funq, valid := l.callbackQueue.Current(); valid {
+			if ret := funq(l); ret {
+				l.callbackQueue.Dequeue()
 			}
 		}
-	} else {
-		return true
 	}
-	return ret && l.callbackQueue.Depth() == 0
 }
 
-func (l *Lexer) Tokenize(source string) error {
-	l.source = source
-	l.length = len(source)
-
-	for !l.isEOF() {
+func (l *Lexer) tokenize() error {
+	l.evaluateCallbacks()
+	if l.callbackQueue.Depth() == 0 {
 		token, matched := l.reg.EvaluateTokenizationHandlers(l)
 		if !matched {
 			return errors.NewHandlerError(fmt.Sprintf("Tokenizer::Error -> unexpected token near [%d]", l.pos), l.pos)
 		}
 
-		//review callbacks for any exemptions
-		//only push the token into the list if clear
-		if l.processCallbacks() {
+		if token != nil {
 			l.push(*token)
 		}
 	}
+	return nil
+}
 
+func (l *Lexer) Tokenize(source string) error {
+	l.source = source
+	l.length = len(source)
+	for !l.isEOF() {
+		if err := l.tokenize(); err != nil {
+			return err
+		}
+	}
 	l.push(NewToken(EOF, "EOF"))
 	return nil
 }
