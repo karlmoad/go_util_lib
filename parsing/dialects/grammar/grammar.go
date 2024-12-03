@@ -10,10 +10,7 @@ import (
 )
 
 const (
-	NULL lexer.TokenKind = iota
-	EOF
-	UNKNOWN
-	NUMBER
+	NUMBER lexer.TokenKind = iota
 	STRING
 	IDENTIFIER
 	OPEN_BRACKET
@@ -74,9 +71,6 @@ var (
 )
 
 var tokenKindMap = map[lexer.TokenKind]string{
-	NULL:          "INVALID NULL",
-	EOF:           "EOF",
-	UNKNOWN:       "UNKNOWN",
 	NUMBER:        "NUMBER",
 	STRING:        "STRING",
 	IDENTIFIER:    "IDENTIFIER",
@@ -161,7 +155,6 @@ func (g *Grammar) RegisterParser(reg *parser.Registry) {
 	reg.RegisterHandler(parser.TokenKindCondition(OPEN_BRACKET), g.GroupedExprHandler(OPEN_BRACKET, CLOSE_BRACKET, false, true, false))
 	reg.RegisterHandler(parser.TokenKindCondition(OPEN_BRACE), g.GroupedExprHandler(OPEN_BRACE, CLOSE_BRACE, false, false, true))
 	reg.RegisterFixedCallback(g.NewExpressionCallback)
-	reg.RegisterFixedCallback(g.EOFCallback)
 }
 
 //<editor-fold desc="lexicographical handlers and callbacks">
@@ -205,10 +198,6 @@ func (g *Grammar) MultilineCommentHandler(lex *lexer.Lexer) (*lexer.Token, bool)
 //</editor-fold>
 
 //<editor-fold desc="Parsing Handlers and callbacks">
-
-func (g *Grammar) EOFCallback(p *parser.Parser) bool {
-	return p.CurrentToken().Kind == EOF
-}
 
 func (g *Grammar) IsNewExpr(p *parser.Parser) bool {
 	if p.CurrentToken().Kind == IDENTIFIER {

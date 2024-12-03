@@ -1,14 +1,12 @@
 package testing
 
 import (
-	"fmt"
 	"github.com/karlmoad/go_util_lib/parsing"
 	"os"
 	"testing"
 )
 
 func TestParsing_parser(t *testing.T) {
-
 	bites, _ := os.ReadFile("test.txt")
 	par, err := parsing.NewParserForDialect(parsing.GRAMMAR)
 	if err != nil {
@@ -19,5 +17,8 @@ func TestParsing_parser(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	fmt.Println(fmt.Sprintf("Number of expressions parsed: %d", len(expressions)))
+
+	if len(expressions) != 4 {
+		t.Errorf("Expected 4 expressions, got %d", len(expressions))
+	}
 }

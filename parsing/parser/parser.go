@@ -151,7 +151,7 @@ func (p *Parser) Parse(source string) ([]ast.Element, error) {
 }
 
 func (p *Parser) ProcessNextToken() (ast.Element, error) {
-	if p.evalCallbacks() {
+	if p.evalCallbacks() || p.currentToken().Kind == lexer.EOF {
 		return nil, nil
 	}
 
