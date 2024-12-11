@@ -9,7 +9,9 @@ import (
 
 func TestParsing_parser(t *testing.T) {
 	bites, _ := os.ReadFile("test.txt")
-	par, err := parsing.NewParserForDialect(parsing.GRAMMAR)
+
+	dialect := grammar.NewGrammarDialect()
+	par, err := parsing.NewParserForDialect(dialect)
 	if err != nil {
 		t.Error(err)
 	}
