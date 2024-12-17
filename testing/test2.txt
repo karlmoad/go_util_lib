@@ -1,0 +1,42 @@
+/*
+    Test Antlr Gen 4 grammar definitions
+
+*/
+query_block
+    : SELECT (DISTINCT | UNIQUE | ALL)? selected_list into_clause? from_clause? where_clause? (
+        hierarchical_query_clause
+        | group_by_clause
+    )* model_clause? order_by_clause? offset_clause? fetch_clause?
+    ;
+
+selected_list
+    : '*'
+    | select_list_elements (',' select_list_elements)*
+    ;
+
+from_clause
+    : FROM table_ref_list
+    ;
+
+select_list_elements
+    : tableview_name '.' ASTERISK
+    | expression column_alias?
+    ;
+
+table_ref_list
+    : table_ref (',' table_ref)*
+    ;
+
+table_ref
+    : table_ref_aux join_clause* (pivot_clause | unpivot_clause)?
+    ;
+
+table_ref_aux
+    : table_ref_aux_internal flashback_query_clause* (/*{isTableAlias()}?*/ table_alias)?
+    ;
+
+table_ref_aux_internal
+    : dml_table_expression_clause (pivot_clause | unpivot_clause)?                # table_ref_aux_internal_one
+    | '(' table_ref subquery_operation_part* ')' (pivot_clause | unpivot_clause)? # table_ref_aux_internal_two
+    | ONLY '(' dml_table_expression_clause ')'                                    # table_ref_aux_internal_thre
+    ;
